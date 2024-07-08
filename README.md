@@ -11,3 +11,16 @@ QA Text File Analyzer is a Flask-based web application that facilitates the extr
 - Extracts answers from text files based on uploaded questions.
 - Saves results as JSON and CSV files for download and detailed analysis.
 
+## Installation
+
+-Clone this repository
+-Install the dependencies
+``` bash
+pip install requirements.txt
+```
+-Ensure that you have stored your textfiles in the DATA_FOLDER,and make sure you use the proper path to the directory
+-Run the application
+``` bash
+App.py
+```
+
