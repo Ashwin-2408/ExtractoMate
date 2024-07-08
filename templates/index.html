@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>File Processing</title>
+    <link rel="stylesheet" type="text/css" href="../static/css/style.css">
+    <script>
+        function validateForm() {
+            var questions = document.getElementById('questions').value.trim();
+            var labels = document.getElementById('labels').value.trim();
+
+            
+            if (questions === "" || labels === "") {
+                alert("Please enter questions and labels.");
+                return false;
+            }
+
+            var questionsArray = questions.includes(',') ? questions.split(',').map(q => q.trim()) : [questions];
+            var labelsArray = labels.includes(',') ? labels.split(',').map(l => l.trim()) : [labels];
+
+           
+            if (questionsArray.length !== labelsArray.length) {
+                alert("The number of questions and labels must match.");
+                return false;
+            }
+
+            return true;
+        }
+    </script>
+</head>
+<body>
+    <h1>DATA CSVizer</h1>
+    <form action="/process" method="post" onsubmit="return validateForm()">
+        <label for="questions">Questions </label><br>
+        <textarea id="questions" name="questions" rows="5" cols="50" placeholder="Enter questions separated by commas, or enter a single question"></textarea><br><br>
+        <label for="labels">Labels</label><br>
+        <textarea id="labels" name="labels" rows="5" cols="50" placeholder="Enter labels separated by commas"></textarea><br><br>
+        <input type="submit" value="Process Files">
+    </form>
+</body>
+</html>
