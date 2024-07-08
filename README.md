@@ -18,8 +18,8 @@ QA Text File Analyzer is a Flask-based web application that facilitates the extr
 ``` bash
 pip install requirements.txt
 ```
-**Ensure that you have stored your textfiles in the DATA_FOLDER,and make sure you use the proper path to the directory**
-**Run the application**
+- **Ensure that you have stored your textfiles in the DATA_FOLDER,and make sure you use the proper path to the directory**
+- **Run the application**
 ``` bash
 App.py
 ```
