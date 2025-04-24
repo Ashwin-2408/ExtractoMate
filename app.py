@@ -5,6 +5,7 @@ import json
 import pandas as pd
 from transformers import pipeline
 from flask_cors import CORS
+from os import environ
 
 app = Flask(__name__)
 CORS(app)
@@ -13,16 +14,22 @@ UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
 FILTERED_FOLDER = os.path.join(os.path.dirname(__file__), 'filtered_data')
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'doc', 'docx'}
 
-# Initialize the model
-model_name = "deepset/roberta-base-squad2"
-nlp = pipeline('question-answering', model=model_name, tokenizer=model_name)
 
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['FILTERED_FOLDER'] = FILTERED_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+# Update model initialization to use a smaller model and optimize memory
+model_name = "distilbert-base-cased-distilled-squad"  # Smaller model
+nlp = pipeline('question-answering', 
+    model=model_name, 
+    tokenizer=model_name,
+    device=-1  # Force CPU usage
+)
 
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+# Add memory optimization
+import gc
+import torch
+
+def cleanup_memory():
+    gc.collect()
+    torch.cuda.empty_cache() if torch.cuda.is_available() else None
 
 @app.route('/api/process', methods=['POST'])
 def process_files():
@@ -63,6 +70,7 @@ def process_files():
                         }
                         res = nlp(QA_input)
                         file_result[label] = res['answer']
+                        cleanup_memory()  # Clean up after each question
 
                     result[filename] = file_result
                 except Exception as e:
@@ -85,6 +93,7 @@ def process_files():
         csv_file_path = os.path.join(app.config['FILTERED_FOLDER'], 'filtered_results.csv')
         df.to_csv(csv_file_path, index=True)
 
+        cleanup_memory()  # Final cleanup
         return jsonify({
             'success': True,
             'csvUrl': '/api/download/filtered_results.csv',
@@ -98,10 +107,7 @@ def process_files():
 def download_file(filename):
     return send_from_directory(app.config['FILTERED_FOLDER'], filename, as_attachment=True)
 
-# Add after imports
-from os import environ
 
-# Update port configuration at the bottom
 if __name__ == '__main__':
     port = int(environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
