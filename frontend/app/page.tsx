@@ -28,12 +28,20 @@ export default function Home() {
         formData.append('files', file);
       });
 
-      const response = await axios.post('http://localhost:5000/api/process', formData, {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+
+      // Update axios calls
+      const response = await axios.post(`${API_URL}/api/process`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
       });
-
+      
+      // Update download URLs
+      setDownloadUrls({
+        csv: `${API_URL}${response.data.csvUrl}`,
+        json: `${API_URL}${response.data.jsonUrl}`,
+      });
       if (response.data.success) {
         setDownloadUrls({
           csv: `http://localhost:5000${response.data.csvUrl}`,
