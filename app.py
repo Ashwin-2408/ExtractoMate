@@ -15,13 +15,18 @@ FILTERED_FOLDER = os.path.join(os.path.dirname(__file__), 'filtered_data')
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'doc', 'docx'}
 
 
-# Update model initialization to use a smaller model and optimize memory
-model_name = "distilbert-base-cased-distilled-squad"  # Smaller model
+# Update model to much smaller version
+model_name = "deepset/minilm-uncased-squad2"
 nlp = pipeline('question-answering', 
     model=model_name, 
     tokenizer=model_name,
-    device=-1  # Force CPU usage
+    device=-1
 )
+
+# Configure app settings
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['FILTERED_FOLDER'] = FILTERED_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
 # Add memory optimization
 import gc
@@ -109,5 +114,5 @@ def download_file(filename):
 
 
 if __name__ == '__main__':
-    port = int(environ.get('PORT', 5000))
+    port = int(environ.get('PORT', 10000))  # Changed default port to 10000
     app.run(host='0.0.0.0', port=port)
