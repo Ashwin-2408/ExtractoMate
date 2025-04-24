@@ -1,66 +1,107 @@
-from flask import Flask, request, render_template, send_from_directory
+from flask import Flask, request, send_from_directory, jsonify
+from werkzeug.utils import secure_filename
 import os
 import json
 import pandas as pd
 from transformers import pipeline
+from flask_cors import CORS
 
 app = Flask(__name__)
-DATA_FOLDER = ''#give the path to the directory containing the files you want to process
-FILTERED_FOLDER = 'filtered_data'
-app.config['DATA_FOLDER'] = DATA_FOLDER
-app.config['FILTERED_FOLDER'] = FILTERED_FOLDER
+CORS(app)
 
+UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
+FILTERED_FOLDER = os.path.join(os.path.dirname(__file__), 'filtered_data')
+ALLOWED_EXTENSIONS = {'txt', 'pdf', 'doc', 'docx'}
 
+# Initialize the model
 model_name = "deepset/roberta-base-squad2"
 nlp = pipeline('question-answering', model=model_name, tokenizer=model_name)
 
-@app.route('/')
-def index():
-    return render_template('index.html')
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['FILTERED_FOLDER'] = FILTERED_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
-@app.route('/process', methods=['POST'])
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@app.route('/api/process', methods=['POST'])
 def process_files():
-    result = {}
-    questions_input = request.form['questions']
-    questions = [q.strip() for q in questions_input.split(',')]
-    labels_input = request.form['labels']
-    labels = [l.strip() for l in labels_input.split(',')]
+    try:
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+        os.makedirs(app.config['FILTERED_FOLDER'], exist_ok=True)
 
-    files = os.listdir(app.config['DATA_FOLDER'])  
+        if 'files' not in request.files:
+            return jsonify({'error': 'No files uploaded'}), 400
 
-    for file_name in files:
-        file_path = os.path.join(app.config['DATA_FOLDER'], file_name)
-        with open(file_path, 'r', encoding='utf-8') as file:
-            context = file.read()
+        questions_input = request.form.get('questions')
+        labels_input = request.form.get('labels')
+        
+        if not questions_input or not labels_input:
+            return jsonify({'error': 'Questions and labels are required'}), 400
 
-        file_result = {}
-        for question, label in zip(questions, labels):
-            QA_input = {
-                'question': question,
-                'context': context
-            }
-            res = nlp(QA_input)
-            file_result[label] = res['answer']
+        questions = [q.strip() for q in questions_input.split(',')]
+        labels = [l.strip() for l in labels_input.split(',')]
 
-        result[file_name] = file_result
+        result = {}
+        files = request.files.getlist('files')
+        
+        for file in files:
+            if file and allowed_file(file.filename):
+                filename = secure_filename(file.filename)
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(filepath)
+                
+                try:
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        context = f.read()
 
-    
-    result_file_path = os.path.join(app.config['FILTERED_FOLDER'], 'result.json')
-    with open(result_file_path, 'w', encoding='utf-8') as json_file:
-        json.dump(result, json_file, ensure_ascii=False, indent=4)
+                    file_result = {}
+                    for question, label in zip(questions, labels):
+                        QA_input = {
+                            'question': question,
+                            'context': context
+                        }
+                        res = nlp(QA_input)
+                        file_result[label] = res['answer']
 
-    
-    df = pd.DataFrame(result).T
-    csv_file_path = os.path.join(app.config['FILTERED_FOLDER'], 'filtered_results.csv')
-    df.to_csv(csv_file_path, index=True)
+                    result[filename] = file_result
+                except Exception as e:
+                    print(f"Error processing file {filename}: {str(e)}")
+                    continue
+                finally:
+                    # Clean up uploaded file
+                    if os.path.exists(filepath):
+                        os.remove(filepath)
 
-    return render_template('result.html', csv_file_name='filtered_results.csv', json_file_name='result.json')
+        if not result:
+            return jsonify({'error': 'No results generated'}), 500
 
-@app.route('/download/<filename>')
+        # Save results
+        result_file_path = os.path.join(app.config['FILTERED_FOLDER'], 'result.json')
+        with open(result_file_path, 'w', encoding='utf-8') as json_file:
+            json.dump(result, json_file, ensure_ascii=False, indent=4)
+
+        df = pd.DataFrame(result).T
+        csv_file_path = os.path.join(app.config['FILTERED_FOLDER'], 'filtered_results.csv')
+        df.to_csv(csv_file_path, index=True)
+
+        return jsonify({
+            'success': True,
+            'csvUrl': '/api/download/filtered_results.csv',
+            'jsonUrl': '/api/download/result.json'
+        })
+    except Exception as e:
+        print(f"Error in process_files: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/download/<filename>')
 def download_file(filename):
     return send_from_directory(app.config['FILTERED_FOLDER'], filename, as_attachment=True)
 
+# Add after imports
+from os import environ
+
+# Update port configuration at the bottom
 if __name__ == '__main__':
-    if not os.path.exists(FILTERED_FOLDER):
-        os.makedirs(FILTERED_FOLDER)
-    app.run(debug=True)
+    port = int(environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
