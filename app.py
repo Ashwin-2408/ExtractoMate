@@ -19,7 +19,7 @@ CORS(app, resources={
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
 FILTERED_FOLDER = os.path.join(os.path.dirname(__file__), 'filtered_data')
-ALLOWED_EXTENSIONS = {'txt', 'pdf', 'doc', 'docx'}
+ALLOWED_EXTENSIONS = {'txt'}
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -41,10 +41,22 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 import gc
 import torch
 
+# Update model configuration for minimal memory usage
+model_name = "deepset/tinyroberta-squad2"  # Even smaller model
+nlp = pipeline('question-answering', 
+    model=model_name, 
+    tokenizer=model_name,
+    device=-1,
+    model_kwargs={'low_cpu_mem_usage': True}
+)
+
+# Add better memory management
 def cleanup_memory():
     gc.collect()
-    torch.cuda.empty_cache() if torch.cuda.is_available() else None
-
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.reset_peak_memory_stats()
+    
 @app.route('/api/process', methods=['POST'])
 def process_files():
     try:
@@ -75,6 +87,8 @@ def process_files():
                 try:
                     with open(filepath, 'r', encoding='utf-8') as f:
                         context = f.read()
+                        if len(context) > 5000:  # Limit context size
+                            context = context[:5000]
 
                     file_result = {}
                     for question, label in zip(questions, labels):
@@ -84,7 +98,7 @@ def process_files():
                         }
                         res = nlp(QA_input)
                         file_result[label] = res['answer']
-                        cleanup_memory()  # Clean up after each question
+                        cleanup_memory()
 
                     result[filename] = file_result
                 except Exception as e:
