@@ -21,6 +21,8 @@ UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
 FILTERED_FOLDER = os.path.join(os.path.dirname(__file__), 'filtered_data')
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'doc', 'docx'}
 
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # Update model to much smaller version
 model_name = "deepset/minilm-uncased-squad2"
