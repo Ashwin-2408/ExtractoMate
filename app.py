@@ -1,4 +1,5 @@
 from flask import Flask, request, send_from_directory, jsonify
+from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import os
 import json
@@ -8,7 +9,13 @@ from flask_cors import CORS
 from os import environ
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={
+    r"/api/*": {
+        "origins": ["https://extracto-mate.vercel.app", "http://localhost:3000"],
+        "methods": ["POST", "GET", "OPTIONS"],
+        "allow_headers": ["Content-Type"]
+    }
+})
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
 FILTERED_FOLDER = os.path.join(os.path.dirname(__file__), 'filtered_data')
